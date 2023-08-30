@@ -1,0 +1,348 @@
+---
+title: "step1.1 generate data (first three criteria)"
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning= F, message = F)
+rm(list=ls(all=TRUE))
+library(readstata13)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+## NHATS 2011 cohort
+```{r}
+#Read in NHATS full data
+Round_1_FULL <- read.dta13(paste0(mainDir,"/MRP/NHATS_R1_Final_Release_STATA_V3/NHATS_Round_1_SP_File.dta"))
+```
+
+
+## Select relevant variables
+```{r}
+selected_svy <- c("spid",
+              "w1anfinwgt0", 
+              "w1varunit", #cluster
+              "w1varstrat") #strata
+
+selected_frail <- c("hw1currweigh","hw1trytolose","hw1lst10pnds","hw1howtallft","hw1howtallin",
+                    "ss1lowenergy","ss1loenlmtat",
+                    "wa1wlkc1secs","wa1wlk1hndr", "wa1rsn11wkc", "wa1rsn21wkc", "wa1rsn31wkc", "wa1wlkc1rslt", "wa1dwlkadm",
+                    "gr1grp1rdng","gr1grp2rdng", "gr1grp1noat1", "gr1grp1noat2", "gr1grp1noat3", "gr1grp1reslt", "gr1dgripadm",
+                    "pa1evrgowalk","pa1vigoractv")
+selected_demo <- c("r1dgender","rl1dracehisp","r1d2intvrage","r1dresid","re1dcensdiv")
+
+Round_1_data <- Round_1_FULL[,c(selected_frail,selected_svy,selected_demo)]
+length(Round_1_data$spid)
+```
+
+## Only community-living participants
+```{r}
+Round_1_data <- Round_1_data[(Round_1_data$r1dresid == 1 | Round_1_data$r1dresid == 2), ]
+length(Round_1_data$spid)
+```
+
+```{r}
+Round_1_data$gender <- as.factor(Round_1_data$r1dgender)
+```
+
+
+
+## Frailty criteria #1: weight loss
+
+Participants met this criteria if:
+1. they had body mass index (BMI) less than 18.5 kg/m2, 
+2. or reported unintentionally losing 10 or more pounds in the last year.
+
+### Step 1: Calculate BMI:
+
+```{r}
+#YOU CURRENTLY WEIGH
+table(Round_1_data$hw1currweigh[Round_1_data$hw1currweigh<0], useNA="ifany") #-8 DK, -7 RF
+#HOW TALL ARE YOU FEET
+table(Round_1_data$hw1howtallft[Round_1_data$hw1howtallft<0], useNA="ifany") #-8 DK, -7 RF
+#HOW TALL ARE YOU INCHES 
+table(Round_1_data$hw1howtallin[Round_1_data$hw1howtallin<0], useNA="ifany") #-8 DK, -1 Inapplicable
+```
+
+
+NHATS variables used for BMI:
+```{r}
+#lbs to kg
+Round_1_data$hw1currweigh <- ifelse(Round_1_data$hw1currweigh < 0 , NA, Round_1_data$hw1currweigh) 
+Round_1_data$weight <- Round_1_data$hw1currweigh*0.453592
+
+#ft to inch
+Round_1_data$hw1howtallft <- ifelse(Round_1_data$hw1howtallft < 0 , NA, Round_1_data$hw1howtallft) 
+Round_1_data$hw1howtallin <- ifelse(Round_1_data$hw1howtallin < 0 , NA, Round_1_data$hw1howtallin) 
+
+#inch to cm
+Round_1_data$height <- Round_1_data$hw1howtallft*.3048 + Round_1_data$hw1howtallin*.0254
+```
+
+
+```{r}
+Round_1_data$bmi <- Round_1_data$weight/((Round_1_data$height)^2)
+Round_1_data$bmi[is.na(Round_1_data$bmi)] <- -1
+summary(Round_1_data$bmi)
+```
+
+
+
+### Step 2: Generate new variable for wtloss:
+
+NHATS variables used:
+```{r}
+#WERE YOU TRYNG LOSE WEGHT
+table(Round_1_data$hw1trytolose, useNA="ifany") #-1 Inapplicable, 1 YES, 2 NO
+#LOST 10 POUNDS IN LAST YR
+table(Round_1_data$hw1lst10pnds, useNA="ifany") #-8 DK, -7 RF, 1 YES, 2 NO
+```
+
+
+```{r}
+Round_1_data$wtloss <- ifelse((Round_1_data$bmi >= 0 & Round_1_data$bmi < 18.5) | (Round_1_data$hw1lst10pnds == 1 & Round_1_data$hw1trytolose == 2), 1,
+                               ifelse(Round_1_data$bmi >= 18.5 & (Round_1_data$hw1lst10pnds == 2 | (Round_1_data$hw1lst10pnds == 1 & Round_1_data$hw1trytolose == 1)), 0, NA))
+                                           
+table(Round_1_data$wtloss, useNA="ifany")
+table(Round_1_data$wtloss, useNA="ifany")[2]/nrow(Round_1_data)
+```
+
+
+## Frailty criteria #2: exhaustion
+
+Participants met this criteria if:
+1. reported recently having low energy
+2. AND enough to limit their activities
+
+
+NHATS variables used:
+```{r}
+#LOW ENERGY IN LAST MONTH
+table(Round_1_data$ss1lowenergy, useNA="ifany") #ss1lowenergy: -8 DK, 1 Yes, 2 No
+#LOW ENERGY EVER LIM ACT
+table(Round_1_data$ss1loenlmtat, useNA="ifany") #ss1loenlmtat: -8 DK, -1 Inapplicable, 1 Yes, 2 No
+```
+
+
+```{r}
+Round_1_data$exhaust <- ifelse(Round_1_data$ss1lowenergy == 1 & Round_1_data$ss1loenlmtat == 1, 1,
+                               ifelse(Round_1_data$ss1lowenergy == 2 | (Round_1_data$ss1lowenergy == 1 & Round_1_data$ss1loenlmtat == 2), 0, NA))
+
+table(Round_1_data$exhaust, useNA="ifany")
+table(Round_1_data$exhaust, useNA="ifany")[2]/nrow(Round_1_data)
+```
+
+\newpage 
+
+## Frailty criteria #3: low energy expenditure
+
+Participants met this criteria if: 
+
+1. recently, they never walked for exercise 
+2. or never engaged in vigorous activities
+
+NHATS variables used:
+```{r}
+#EVER GO WALKING
+table(Round_1_data$pa1evrgowalk, useNA="ifany") #-8 DK, -7 RF, 1 YES, 2 NO
+#EVER VIGOROUS ACTIVITIES
+table(Round_1_data$pa1vigoractv, useNA="ifany") #-8 DK, -7 RF, 1 YES, 2 NO
+```
+
+Generate new variable for lowenergy:
+```{r}
+Round_1_data$lowenergy <- ifelse(Round_1_data$pa1evrgowalk == 2 & Round_1_data$pa1vigoractv == 2, 2,
+                                 ifelse(Round_1_data$pa1evrgowalk == 1 & Round_1_data$pa1vigoractv == 1, 0,
+                                        ifelse((Round_1_data$pa1evrgowalk == 1 & Round_1_data$pa1vigoractv == 2) | (Round_1_data$pa1evrgowalk == 2 & Round_1_data$pa1vigoractv == 1), 1, NA)))
+
+table(Round_1_data$lowenergy, useNA="ifany")
+table(Round_1_data$lowenergy, useNA="ifany")[3]/nrow(Round_1_data)
+```
+
+\newpage 
+
+## Frailty criteria #4: low walking speed
+
+“Low walking speed” was defined, using the first of two usual-pace walking trials, as being at or below the 20th percentile of the weighted population distribution within four sex-by-height categories. 
+
+
+NAHTS variables used:
+```{r}
+table(Round_1_data$wa1wlkc1secs[Round_1_data$wa1wlkc1secs<0], useNA="ifany") #-9 Missing, -1 Inapplicable
+table(Round_1_data$wa1wlk1hndr[Round_1_data$wa1wlk1hndr<0], useNA="ifany") #-9 Missing, -1 Inapplicable, -8 DK, -7 RF
+```
+
+
+```{r}
+Round_1_data$wa1wlkc1secs <- ifelse(Round_1_data$wa1wlkc1secs < 0 , NA, Round_1_data$wa1wlkc1secs)
+Round_1_data$wa1wlk1hndr <- ifelse(Round_1_data$wa1wlk1hndr < 0 , NA, Round_1_data$wa1wlk1hndr)
+
+Round_1_data$sec <- Round_1_data$wa1wlkc1secs + Round_1_data$wa1wlk1hndr/100
+Round_1_data$speed <- 3/Round_1_data$sec
+summary(Round_1_data$speed)
+```
+
+
+```{r}
+#replace missing with 0 for participants who didn't complete the test for safety reasons
+for (i in 1:nrow(Round_1_data)){
+  if (is.na(Round_1_data$sec[i])){
+      if (Round_1_data$wa1wlkc1rslt[i] == 2 | Round_1_data$wa1dwlkadm[i] == 4 | Round_1_data$wa1rsn11wkc[i] == 1 | Round_1_data$wa1rsn21wkc[i] == 1 | Round_1_data$wa1rsn31wkc[i] == 1){
+    #-9 Missing, -1 Inapplicable, 2 Attempted, 3 Not attempted,
+    Round_1_data$speed[i] <- 0
+  }
+}
+}
+#Remove outlier (same as Bandeen-Roche's code)
+Round_1_data$speed[Round_1_data$speed >10 & !is.na(Round_1_data$speed)] <- NA
+
+summary(Round_1_data$speed)
+summary(Round_1_data$speed)[7]/nrow(Round_1_data)
+```
+
+
+\newpage
+
+## Frailty criteria #5: low grip strength
+
+“Weakness” was defined, using maximum dominant hand grip strength over two trials, as being at or below the 20th percentile within eight sex-by-BMI categories. 
+
+
+NAHTS variables used:
+```{r}
+table(Round_1_data$gr1grp1rdng[Round_1_data$gr1grp1rdng<0], useNA="ifany") #-9 Missing, -1 Inapplicable
+table(Round_1_data$gr1grp2rdng[Round_1_data$gr1grp2rdng<0], useNA="ifany") #-9 Missing, -1 Inapplicable
+```
+
+
+```{r}
+Round_1_data$gr1grp1rdng <- ifelse(Round_1_data$gr1grp1rdng < 0 , NA, Round_1_data$gr1grp1rdng)
+Round_1_data$gr1grp2rdng <- ifelse(Round_1_data$gr1grp2rdng < 0 , NA, Round_1_data$gr1grp2rdng)
+```
+
+
+```{r}
+#Find maximum dominant hand grip strength over two trials
+Round_1_data$grip <- NA
+Round_1_data$gripi <- NA
+
+for (i in 1:nrow(Round_1_data)){
+  #if not NA for both trial
+  if (!is.na(Round_1_data$gr1grp1rdng[i]) & !is.na(Round_1_data$gr1grp2rdng[i])){
+      if (Round_1_data$gr1grp1rdng[i] < Round_1_data$gr1grp2rdng[i]){
+        Round_1_data$grip[i] <- Round_1_data$gr1grp2rdng[i]
+        Round_1_data$gripi[i] <- 2
+        }
+    else {
+      Round_1_data$grip[i] <- Round_1_data$gr1grp1rdng[i]
+      Round_1_data$gripi[i] <- 1
+      }
+  }
+  #if NA in one trial
+  if (is.na(Round_1_data$gr1grp1rdng[i])){
+    Round_1_data$grip[i] <- Round_1_data$gr1grp2rdng[i]
+    Round_1_data$gripi[i] <- 2
+  }
+  if (is.na(Round_1_data$gr1grp2rdng[i])){
+    Round_1_data$grip[i] <- Round_1_data$gr1grp1rdng[i]
+    Round_1_data$gripi[i] <- 1
+  }
+}
+
+summary(Round_1_data$grip)
+summary(Round_1_data$grip)[7]/nrow(Round_1_data)
+table(Round_1_data$gripi, useNA="ifany")
+```
+
+
+```{r}
+#replace missing with 0 for participants who didn't complete the test for safety reasons
+for (i in 1:nrow(Round_1_data)){
+  if (is.na(Round_1_data$grip[i])){
+    if (Round_1_data$gr1grp1reslt[i] == 2 | Round_1_data$gr1dgripadm[i] == 4 | Round_1_data$gr1grp1noat1[i] == 1 | Round_1_data$gr1grp1noat2[i] == 1 | Round_1_data$gr1grp1noat3[i] == 1){
+    #-9 Missing, -1 Inapplicable, 2 Attempted, 3 Not attempted,
+    Round_1_data$grip[i] <- 0
+    }
+}
+}
+
+#grip strength > 60 women and >90 for men are outliers
+Round_1_data$grip[Round_1_data$grip >90 & !is.na(Round_1_data$grip) & Round_1_data$r1dgender == 1] <- NA
+Round_1_data$grip[Round_1_data$grip >60 & !is.na(Round_1_data$grip) & Round_1_data$r1dgender == 2] <- NA
+
+summary(Round_1_data$grip)
+summary(Round_1_data$grip)[7]/nrow(Round_1_data)
+```
+
+
+
+
+
+
+
+### Generate new variable for sex-by-height categories:
+```{r}
+Round_1_data$height[is.na(Round_1_data$height)] <- -1
+table(Round_1_data$height)
+```
+
+
+```{r}
+Round_1_data$ht_gender <- "Height_missing"
+
+Round_1_data$ht_gender[Round_1_data$gender == 2 & Round_1_data$height <= 1.59 & Round_1_data$height >=0] <- "Female, 1"
+Round_1_data$ht_gender[Round_1_data$gender == 2 & Round_1_data$height > 1.59] <- "Female, 2"
+
+Round_1_data$ht_gender[Round_1_data$gender == 1 & Round_1_data$height <= 1.73 & Round_1_data$height >=0] <- "Male, 1"
+Round_1_data$ht_gender[Round_1_data$gender == 1 & Round_1_data$height > 1.73] <- "Male, 2"
+
+table(Round_1_data$ht_gender, useNA = "ifany")
+```
+
+
+
+### Generate new variable for sex-by-BMI categories:
+```{r}
+Round_1_data$bmi_gender <- "BMI_missing"
+Round_1_data$bmi_gender[Round_1_data$gender == 2 & Round_1_data$bmi >= 0 & Round_1_data$bmi < 18.5] <- "Female, 1"
+Round_1_data$bmi_gender[Round_1_data$gender == 2 & Round_1_data$bmi >= 18.5 & Round_1_data$bmi < 25] <- "Female, 2"
+Round_1_data$bmi_gender[Round_1_data$gender == 2 & Round_1_data$bmi >= 25 & Round_1_data$bmi < 30] <- "Female, 3"
+Round_1_data$bmi_gender[Round_1_data$gender == 2 & Round_1_data$bmi >= 30] <- "Female, 4"
+
+Round_1_data$bmi_gender[Round_1_data$gender == 1 & Round_1_data$bmi >= 0 & Round_1_data$bmi < 18.5] <- "Male, 1"
+Round_1_data$bmi_gender[Round_1_data$gender == 1 & Round_1_data$bmi >= 18.5 & Round_1_data$bmi < 25] <- "Male, 2"
+Round_1_data$bmi_gender[Round_1_data$gender == 1 & Round_1_data$bmi >= 25 & Round_1_data$bmi < 30] <- "Male, 3"
+Round_1_data$bmi_gender[Round_1_data$gender == 1 & Round_1_data$bmi >= 30] <- "Male, 4"
+
+table(Round_1_data$bmi_gender, useNA="ifany")
+```
+
+
+
+### Count the number of missing scales
+Persons assessed on at least three frailty criteria (including “0” scores) were considered eligible
+```{r}
+Round_1_data$misscnt <- -1
+for (i in 1:nrow(Round_1_data)){
+  a <- as.numeric(!is.na(Round_1_data$wtloss[i]))
+  b <- as.numeric(!is.na(Round_1_data$exhaust[i]))
+  c <- as.numeric(!is.na(Round_1_data$lowenergy[i]))
+  d <- as.numeric((!is.na(Round_1_data$speed[i]) & !(Round_1_data$ht_gender[i]=="Height_missing")))
+  e <- as.numeric((!is.na(Round_1_data$grip[i]) & !(Round_1_data$bmi_gender[i]=="BMI_missing")))
+  validcnt <- a + b + c + d + e
+  Round_1_data$misscnt[i] <- 5-validcnt
+}
+table(Round_1_data$misscnt,useNA="ifany")
+round(table(Round_1_data$misscnt,useNA="ifany")/nrow(Round_1_data)*100,1)
+```
+
+
+
+```{r}
+save.dta13(Round_1_data,paste0(mainDir,"/MRP/2011_cohort/data/cleaned_data_7609.dta"))
+```
+
+
+

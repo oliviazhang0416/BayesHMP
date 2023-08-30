@@ -1,0 +1,133 @@
+---
+title: "step 3.3 posterior predictive check"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning= F, message = F)
+options(mc.cores = 3)
+rm(list=ls(all=TRUE))
+library(readstata13)
+library(rstan)
+library(fastDummies)
+library(tidyr)
+seed <- 2023001
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+## ------------------------------------------------------------------------------------------
+## ----------------------------------- Prepare the data -------------------------------------
+## ------------------------------------------------------------------------------------------
+
+```{r,echo=F}
+#Read in population data
+pop.data <- readRDS(paste0(mainDir,"/MRP/pop_data/pop.data_v2.RData"))
+#Read in outcome data
+Round_1_data <- read.dta13(paste0(mainDir,"/MRP/2011_cohort/data/our_data_7439.dta"))
+```
+
+
+```{r,echo=F}
+Round_1_data$age <- as.factor(Round_1_data$age)
+Round_1_data$race <- as.factor(Round_1_data$race)
+Round_1_data$division <- as.factor(Round_1_data$division)
+
+Round_1_data$frailty <- Round_1_data$frailty+1
+```
+
+```{r,echo=F, results='hide'}
+pop.data <- pop.data[,c("division", "age", "race", "N")]
+pop.data <- pop.data[with(pop.data, order(division, age, race)),]
+```
+
+```{r,echo=F, results='hide'}
+out.data <- Round_1_data[,c("division", "age", "race", "frailty")]
+out.data <- out.data[with(out.data, order(division, age, race)),]
+```
+
+
+```{r,echo=F}
+#Create dummy variables (not remove first dummy)
+out.data.dum <- cbind(dummy_cols(out.data, remove_first_dummy = F,
+                       select_columns = c("age","race","division")))
+pop.data.dum <- cbind(dummy_cols(pop.data, remove_first_dummy = F,
+                       select_columns = c("age","race","division")))
+```
+
+
+
+## ------------------------------------------------------------------------------------------
+## ---------------------------------- Model specification -----------------------------------
+## ------------------------------------------------------------------------------------------
+
+```{r,echo=F}
+#Define parameters
+outcome <- out.data$frailty
+N <- length(outcome)
+K <- length(unique(outcome)) #3 levels of outcomes
+P1 <- length(unique(Round_1_data$age)) #5 levels
+P2 <- length(unique(Round_1_data$race)) #3 levels
+D <- length(unique(Round_1_data$division)) #9 levels
+
+X_0 <- as.matrix(as.integer(rep(1,N))) #intercept
+X_1 <- as.matrix(out.data.dum[,5:9]) #age
+X_2 <- as.matrix(out.data.dum[,10:12]) #race
+Z <- as.matrix(out.data.dum[,13:21]) #division
+```
+
+```{r,echo=F}
+n_iter <- 1000
+n_chain <- 3
+n_warmup <- 500
+n_sim <- (n_iter-n_warmup) * n_chain
+```
+
+
+```{r,echo=F, message = FALSE, results='hide'}
+stanfit <- stan(file=paste0(mainDir,"/MRP/stan_model_ppc.stan"),
+                data = list(N = N,
+                          K = K,
+                          D = D,
+                          P1 = P1,
+                          P2 = P2,
+                          X_0 = X_0,
+                          X_1 = X_1,
+                          X_2 = X_2,
+                          Z = Z,
+                          outcome = outcome),
+                iter=n_iter, chains=n_chain, warmup = n_warmup, seed = "2023")
+
+post_samples <- rstan::extract(stanfit,
+                         pars=c("outcome_rep"))
+outcome_rep <- post_samples[["outcome_rep"]] #500*7439
+saveRDS(outcome_rep, file=paste0(mainDir,"/MRP/2011_cohort/data/outcome_rep.RData"))
+```
+
+```{r}
+outcome_rep <- readRDS(paste0(mainDir,"/MRP/2011_cohort/data/outcome_rep.RData"))
+#store the predictive outcomes
+outcome_rep_ <- as.data.frame(matrix(NA, nrow=n_sim,ncol=K))
+for (i in 1:n_sim){
+  outcome_rep_[i,] <- table(outcome_rep[i,])
+}
+colnames(outcome_rep_) <- c("Nonfrail", "Prefrail","Frail")
+```
+
+
+```{r}
+p <- ggplot(gather(outcome_rep_), aes(value)) + 
+  geom_histogram(bins = 10, position="identity", alpha=0.5) + 
+  theme_bw() + ylab("Frequency") + xlab("count") +
+  facet_wrap(~factor(key, levels = c("Nonfrail", "Prefrail","Frail")), scales = 'free_x') +
+  geom_vline(aes(xintercept=rep(table(outcome), each = n_sim), color="observed"), linetype="dashed", size=0.8) +
+  scale_color_manual(name = " ", values = c(observed = "blue"))
+
+ggsave(paste0(mainDir,"/MRP/inserts/Diagnostics/Postcheck.2011.jpg"), p)
+```
+
+
+
+
+
+
+
