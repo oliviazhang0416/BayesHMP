@@ -1,5 +1,9 @@
 This folder includes the trace plots, ACF plots and Rhat plot for the 2011, 2015 and combined NHATS cohort!
 
+Samples from posterior distributions of model parameters were generated using RStan’s Hamiltonian Monte Carlo routines implemented with 3 chains, each with a minimum of 1,000 iterations, the first half of which were considered warm-up and disregarded. 
+
+Convergence was judged using trace plots, auto-correlation plots and numerical diagnostics $\hat R$ (the potential scale reduction factor) for all model parameters. 
+
 ① Trace plot: the estimated values were plotted across each iteration for each chain. 
   
   What we want: a random bouncing around an average value.
