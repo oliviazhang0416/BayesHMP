@@ -1,0 +1,110 @@
+---
+title: 'step2 weighted est'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readstata13)
+library(survey)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+## Analytic sample size
+```{r,echo=F, message=F, warning=F}
+our_data <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/our_data_FULL.dta"))
+nrow(our_data)
+table(our_data$include, useNA="ifany")
+table(our_data$frailty, useNA="ifany")
+```
+
+
+
+```{r,echo=F}
+our_data$frailty <- factor(our_data$frailty, levels=c("0","1","2"))
+our_data$include <- factor(our_data$include, levels=c("0","1"))
+```
+
+
+## Weighted prevalence estimates
+
+```{r,echo=F}
+survey_design_all <- svydesign(
+  data = our_data, 
+  strata = ~w5varstrat,     #indicates the stratum from which the PSUs were drawn
+  ids = ~w5varunit,         #indicates Primary Sampling Unit (PSU) or cluster
+  nest = TRUE, 
+  weights = ~w5anfinwgt0
+)
+```
+
+
+
+```{r}
+#subset design
+survey_design <- subset(survey_design_all, include == 1)
+```
+
+
+
+```{r}
+prop <- c(svyciprop(~I(frailty=="0"), survey_design)[1],
+          svyciprop(~I(frailty=="1"), survey_design)[1],
+          svyciprop(~I(frailty=="2"), survey_design)[1])
+
+CI <- rbind(attr(svyciprop(~I(frailty=="0"), survey_design), "ci"),
+            attr(svyciprop(~I(frailty=="1"), survey_design), "ci"),
+            attr(svyciprop(~I(frailty=="2"), survey_design), "ci"))
+
+vcov <- c(attr(svyciprop(~I(frailty=="0"), survey_design), "var"),
+          attr(svyciprop(~I(frailty=="1"), survey_design), "var"),
+          attr(svyciprop(~I(frailty=="2"), survey_design), "var"))
+
+est.2 <- cbind(prop, vcov, CI)
+est.2
+```
+
+
+## Unweighted prevalence estimates
+
+```{r,echo=F}
+survey_design_all <- svydesign(
+  data = our_data, 
+  strata = ~w5varstrat, 
+  ids = ~w5varunit, 
+  nest = TRUE
+)
+```
+
+```{r}
+survey_design <- subset(survey_design_all, include == 1)
+```
+
+
+
+```{r}
+prop <- c(svyciprop(~I(frailty=="0"), survey_design)[1],
+          svyciprop(~I(frailty=="1"), survey_design)[1],
+          svyciprop(~I(frailty=="2"), survey_design)[1])
+
+CI <- rbind(attr(svyciprop(~I(frailty=="0"), survey_design), "ci"),
+            attr(svyciprop(~I(frailty=="1"), survey_design), "ci"),
+            attr(svyciprop(~I(frailty=="2"), survey_design), "ci"))
+
+vcov <- c(attr(svyciprop(~I(frailty=="0"), survey_design), "var"),
+          attr(svyciprop(~I(frailty=="1"), survey_design), "var"),
+          attr(svyciprop(~I(frailty=="2"), survey_design), "var"))
+
+est.1 <- cbind(prop, vcov, CI)
+est.1
+```
+
+
+```{r,echo=F}
+saveRDS(est.1, file=paste0(mainDir,"/MRP/2015_cohort/data/results.1.RData"))
+saveRDS(est.2, file=paste0(mainDir,"/MRP/2015_cohort/data/results.2.RData"))
+```
+
+
+

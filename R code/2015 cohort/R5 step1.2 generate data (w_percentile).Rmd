@@ -1,0 +1,77 @@
+---
+title: "step1.2 generate data (w_percentile)"
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning= F, message = F)
+rm(list=ls(all=TRUE))
+library(readstata13)
+library(survey)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+
+```{r}
+#Merge NHATS full data to the cleaned 7499 data (community-living only)
+Round_5_FULL <- read.dta13(paste0(mainDir,"/MRP/NHATS_R5_Final_Release_STATA_V3/NHATS_Round_5_SP_File_V2.dta"))
+
+selected_svy <- c("spid",
+              "w5anfinwgt0", 
+              "w5varunit", #cluster
+              "w5varstrat") #strata
+
+Round_5_FULL <- Round_5_FULL[, selected_svy]
+length(Round_5_FULL$spid)
+
+Round_5_cleaned <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/cleaned_data_7499.dta"))
+Round_5_FULL <- merge(Round_5_FULL, Round_5_cleaned, selected_svy, all.x=TRUE)
+```
+
+
+
+### Calculate weighted 20% percentile for speed
+```{r}
+survey_design_all <- svydesign(
+  data = Round_5_FULL, 
+  strata = ~w5varstrat, 
+  ids = ~w5varunit, 
+  nest = TRUE, 
+  weights = ~w5anfinwgt0
+ )
+
+survey_design <- subset(survey_design_all, (r5dresid == 1 | r5dresid == 2) & !(ht_gender == "Height_missing"))
+
+w.percentile <- svyby(~speed, ~ht_gender, design=survey_design, svyquantile, 0.2, na.rm = TRUE)
+w.percentile
+```
+
+```{r}  
+saveRDS(w.percentile, file=paste0(mainDir,"/MRP/2015_cohort/data/w.percentile.speed.RData"))
+```
+
+
+
+### Calculate weighted 20% percentile for grip
+```{r}
+survey_design_all <- svydesign(
+  data = Round_5_FULL, 
+  strata = ~w5varstrat, 
+  ids = ~w5varunit, 
+  nest = TRUE, 
+  weights = ~w5anfinwgt0
+ )
+survey_design <- subset(survey_design_all, (r5dresid == 1 | r5dresid == 2) & !(bmi_gender == "BMI_missing"))
+```
+
+```{r}
+w.percentile <- svyby(~grip, ~bmi_gender, design=survey_design, svyquantile, 0.2, na.rm = TRUE)
+w.percentile
+```
+
+```{r}  
+saveRDS(w.percentile, file=paste0(mainDir,"/MRP/2015_cohort/data/w.percentile.grip.RData"))
+```
+

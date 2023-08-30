@@ -1,0 +1,105 @@
+---
+title: "step1.4 generate data (cleaned)"
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning= F, message = F)
+rm(list=ls(all=TRUE))
+library(readstata13)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+
+```{r}
+#Read in cleaned data (at least 3 frailty criteria)
+Round_5_data <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/cleaned_data_7416.dta"))
+```
+
+```{r}
+#Select relevant variables
+selected_svy <- c("spid",
+              "w5anfinwgt0", 
+              "w5varunit",
+              "w5varstrat") 
+selected_demo <- c("r5dresid","r5dgender","rl5dracehisp","r5d2intvrage","re5dcensdiv")
+
+Round_5_data <- Round_5_data[, c(selected_svy, selected_demo, "frailty")]
+table(Round_5_data$frailty, useNA="ifany")
+```
+
+Recode race:
+```{r}
+table(Round_5_data$rl5dracehisp, useNA="ifany")
+# 1 White, non-hispanic
+# 2 Black, non-hispanic
+# 3 Other (Am Indian/Asian/Native Hawaiian/Pacific Islander/other specify), non-Hispanic
+# 4 Hispanic
+# 5 more than one DKRF primary
+# 6 DKRF
+Round_5_data$race <- ifelse(Round_5_data$rl5dracehisp == 1 | Round_5_data$rl5dracehisp == 3 | Round_5_data$rl5dracehisp > 4, 1,
+                            ifelse(Round_5_data$rl5dracehisp == 2, 2,
+                                   ifelse(Round_5_data$rl5dracehisp == 4, 3, NA)))
+# 1 White/Other, non-hispanic
+# 2 Black, non-hispanic
+# 3 Hispanic
+table(Round_5_data$race, useNA="ifany")
+```
+
+Recode age:
+```{r}
+Round_5_data$r5d2intvrage <- ifelse(Round_5_data$r5d2intvrage < 1, NA, Round_5_data$r5d2intvrage)
+table(Round_5_data$r5d2intvrage, useNA="ifany")
+Round_5_data$age <- ifelse(Round_5_data$r5d2intvrage == 1, 1,
+                         ifelse(Round_5_data$r5d2intvrage == 2, 2,
+                                ifelse(Round_5_data$r5d2intvrage == 3, 3,
+                                       ifelse(Round_5_data$r5d2intvrage == 4, 4,
+                                              ifelse(Round_5_data$r5d2intvrage == 5 | Round_5_data$r5d2intvrage == 6, 5,NA)))))
+table(Round_5_data$age, useNA="ifany")
+```
+
+Recode division:
+```{r}
+Round_5_data$division <- Round_5_data$re5dcensdiv
+table(Round_5_data$division, useNA="ifany")
+```
+
+```{r}
+save.dta13(Round_5_data,paste0(mainDir,"/MRP/2015_cohort/data/our_data_7416.dta"))
+```
+
+
+
+```{r}
+#Read in NHATS full data
+Round_5_FULL <- read.dta13(paste0(mainDir,"/MRP/NHATS_R5_Final_Release_STATA_V3/NHATS_Round_5_SP_File_V2.dta"))
+```
+
+```{r}
+#Merge NHATS full data with cleaned data
+Round_5_data$include <- 1
+Round_5_data <- Round_5_data[,c("spid", "frailty", "include")]
+selected_svy <- c("spid",
+              "w5anfinwgt0", 
+              "w5varunit", 
+              "w5varstrat") 
+
+Round_5_FULL <- Round_5_FULL[, selected_svy]
+length(Round_5_FULL$spid)
+
+Round_5_FULL <- merge(Round_5_FULL, Round_5_data, "spid", all.x=TRUE)
+Round_5_FULL[is.na(Round_5_FULL$include),"include"] <- 0
+table(Round_5_FULL$include, useNA = "ifany")
+table(Round_5_FULL$frailty, useNA = "ifany")
+```
+
+
+
+```{r}
+#Save full data for weighted estimates
+save.dta13(Round_5_FULL,paste0(mainDir,"/MRP/2015_cohort/data/our_data_FULL.dta"))
+```
+
+

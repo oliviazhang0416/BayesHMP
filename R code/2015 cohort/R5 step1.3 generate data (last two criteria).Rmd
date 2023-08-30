@@ -1,0 +1,158 @@
+---
+title: "step1.3 generate data (last two criteria)"
+output: pdf_document
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning= F, message = F)
+rm(list=ls(all=TRUE))
+library(readstata13)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+
+```{r}
+#Read in cleaned community-living only data
+Round_5_cleaned <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/cleaned_data_7499.dta"))
+```
+
+
+## Frailty criteria #4: low walking speed
+
+```{r}
+#Read in weighted percentile for speed
+w.pt.speed <- readRDS(paste0(mainDir,"/MRP/2015_cohort/data/w.percentile.speed.RData"))
+w.pt.speed
+```
+
+
+```{r}
+Round_5_cleaned$speed2 <- NA
+
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Female, 1" & Round_5_cleaned$speed >= 0 & Round_5_cleaned$speed <= w.pt.speed["Female, 1", "speed"]] <- 1
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Female, 1" & Round_5_cleaned$speed > w.pt.speed["Female, 1", "speed"]] <- 0
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Female, 2" & Round_5_cleaned$speed >= 0 & Round_5_cleaned$speed <= w.pt.speed["Female, 2", "speed"]] <- 1
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Female, 2" & Round_5_cleaned$speed > w.pt.speed["Female, 2", "speed"]] <- 0
+
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Male, 1" & Round_5_cleaned$speed >= 0 & Round_5_cleaned$speed <= w.pt.speed["Male, 1", "speed"]] <- 1
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Male, 1" & Round_5_cleaned$speed > w.pt.speed["Male, 1", "speed"]] <- 0
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Male, 2" & Round_5_cleaned$speed >= 0 & Round_5_cleaned$speed <= w.pt.speed["Male, 2", "speed"]] <- 1
+Round_5_cleaned$speed2[Round_5_cleaned$ht_gender == "Male, 2" & Round_5_cleaned$speed > w.pt.speed["Male, 2", "speed"]] <- 0
+
+table(Round_5_cleaned$speed2, useNA = "ifany")   
+table(Round_5_cleaned$speed2, useNA = "ifany")[2]/nrow(Round_5_cleaned)
+```
+
+
+```{r}
+#### Replicate supplementary table 1a:
+tab.1a <- Round_5_cleaned
+tab.1a <- tab.1a[!is.na(Round_5_cleaned$speed),]
+table(tab.1a$ht_gender, useNA="ifany")
+```
+
+\newpage
+
+
+## Frailty criteria #5: low grip strength
+
+
+```{r}
+#Read in weighted percentile for grip
+w.pt.grip <- readRDS(paste0(mainDir,"/MRP/2015_cohort/data/w.percentile.grip.RData"))
+w.pt.grip
+```
+
+
+```{r}
+Round_5_cleaned$grip2 <- NA
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 1" & Round_5_cleaned$grip <= w.pt.grip["Female, 1", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 1" & Round_5_cleaned$grip > w.pt.grip["Female, 1", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 2" & Round_5_cleaned$grip <= w.pt.grip["Female, 2", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 2" & Round_5_cleaned$grip > w.pt.grip["Female, 2", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 3" & Round_5_cleaned$grip <= w.pt.grip["Female, 3", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 3" & Round_5_cleaned$grip > w.pt.grip["Female, 3", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 4" & Round_5_cleaned$grip <= w.pt.grip["Female, 4", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Female, 4" & Round_5_cleaned$grip > w.pt.grip["Female, 4", "grip"]] <- 0
+
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 1" & Round_5_cleaned$grip <= w.pt.grip["Male, 1", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 1" & Round_5_cleaned$grip > w.pt.grip["Male, 1", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 2" & Round_5_cleaned$grip <= w.pt.grip["Male, 2", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 2" & Round_5_cleaned$grip > w.pt.grip["Male, 2", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 3" & Round_5_cleaned$grip <= w.pt.grip["Male, 3", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 3" & Round_5_cleaned$grip > w.pt.grip["Male, 3", "grip"]] <- 0
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 4" & Round_5_cleaned$grip <= w.pt.grip["Male, 4", "grip"] & Round_5_cleaned$grip >= 0] <- 1
+Round_5_cleaned$grip2[Round_5_cleaned$bmi_gender == "Male, 4" & Round_5_cleaned$grip > w.pt.grip["Male, 4", "grip"]] <- 0
+
+table(Round_5_cleaned$grip2, useNA = "ifany")   
+table(Round_5_cleaned$grip2, useNA = "ifany")[2]/nrow(Round_5_cleaned)
+```
+
+
+```{r}
+#Replicate supplementary table 2a:
+tab.2a <- Round_5_cleaned
+tab.2a <- tab.2a[!is.na(Round_5_cleaned$grip),]
+table(tab.2a$bmi_gender, useNA="ifany")
+```
+
+
+
+### Keep eligible participants
+Persons assessed on at least three frailty criteria (including “0” scores) were considered eligible
+
+```{r}
+#store kept id
+keep.id <- Round_5_cleaned[Round_5_cleaned$misscnt<=2,"spid"]
+length(keep.id)
+
+Round_5_include <- Round_5_cleaned[Round_5_cleaned$spid %in% keep.id, ]
+table(Round_5_include[, "misscnt"],useNA="ifany")
+round(table(Round_5_include[, "misscnt"],useNA="ifany")/nrow(Round_5_include)*100,1)
+```
+
+
+
+## Finally, sssign frailty status
+
+```{r}
+Round_5_include$frailty <- NA
+for (i in 1:nrow(Round_5_include)){
+  
+  if.wtloss <- !is.na(Round_5_include$wtloss[i]) & Round_5_include$wtloss[i]==1
+  if.exhaust <- !is.na(Round_5_include$exhaust[i]) & Round_5_include$exhaust[i]==1
+  if.lowenergy <- !is.na(Round_5_include$lowenergy[i]) & Round_5_include$lowenergy[i]==2
+  if.speed2 <- !is.na(Round_5_include$speed2[i]) & Round_5_include$speed2[i]==1
+  if.grip2 <- !is.na(Round_5_include$grip2[i]) & Round_5_include$grip2[i]==1
+
+  
+  sum <- if.wtloss + if.exhaust + if.lowenergy + if.speed2 + if.grip2
+  
+  if (sum == 0){
+    Round_5_include$frailty[i] <- 0
+  }
+  else if (sum > 2){
+    Round_5_include$frailty[i] <- 2
+  }
+  else {
+    Round_5_include$frailty[i] <- 1
+  }
+  
+  if.all.NA <- is.na(Round_5_include$wtloss[i]) & is.na(Round_5_include$exhaust[i]) & is.na(Round_5_include$lowenergy[i]) & is.na(Round_5_include$speed2[i]) & is.na(Round_5_include$grip2[i])
+  
+  if (if.all.NA == T){
+    Round_5_include$frailty[i] <- NA
+  }
+}
+
+table(Round_5_include$frailty, useNA="ifany") #2542 3474 1400 
+table(Round_5_include$frailty, useNA="ifany")/nrow(Round_5_include)
+```
+
+```{r}
+save.dta13(Round_5_include,paste0(mainDir,"/MRP/2015_cohort/data/cleaned_data_7416.dta"))
+```
+
+
