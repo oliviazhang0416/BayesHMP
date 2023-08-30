@@ -1,0 +1,49 @@
+---
+title: "Combined cohort"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T)
+rm(list=ls())
+library(readstata13)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+```{r, echo=F, results="hide"}
+Round_1_data <- read.dta13(paste0(mainDir,"/MRP/2011_cohort/data/our_data_7439.dta"))
+Round_5_data <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/our_data_7416.dta"))
+
+R1 <- Round_1_data[!Round_1_data$spid %in% Round_5_data$spid,]
+
+R1_both <- Round_1_data[Round_1_data$spid %in% Round_5_data$spid,]
+
+R5_both <- Round_5_data[Round_5_data$spid %in% Round_1_data$spid,]
+
+R5 <- Round_5_data[!Round_5_data$spid %in% Round_1_data$spid,]
+
+nrow(R1)
+nrow(R1_both)
+nrow(R5)
+nrow(R5_both)
+```
+
+
+```{r, echo=F, results="hide"}
+colnames(R1) <- gsub('[0-9]+', '', colnames(R1))
+colnames(R1_both) <- gsub('[0-9]+', '', colnames(R1_both))
+colnames(R5) <- gsub('[0-9]+', '', colnames(R5))
+colnames(R5_both) <- gsub('[0-9]+', '', colnames(R5_both))
+
+combine_data_2011 <- rbind(R1, R1_both, R5)
+combine_data_2011 <- combine_data_2011[order(combine_data_2011$spid), ]
+length(unique(combine_data_2011$spid))
+```
+
+
+```{r}
+save.dta13(combine_data_2011,paste0(mainDir,"/MRP/combined_cohort/data/our_data_2011.dta"))
+```
+
+
+

@@ -1,0 +1,121 @@
+---
+title: "Interpolated population"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning= F, message = F)
+rm(list=ls(all=TRUE))
+library(dplyr)
+library(readstata13)
+mainDir <- "/Users/oliviazhang/Desktop/"
+```
+
+
+```{r}
+#Read in population data
+pop.data.2011 <- readRDS(paste0(mainDir,"/MRP/pop_data/pop.data_v2.RData"))
+pop.data.2015 <- readRDS(paste0(mainDir,"/MRP/pop_data/pop.data.2015_v2.RData"))
+
+#Read in outcome data
+combine_data <- read.dta13(paste0(mainDir,"/MRP/combined_cohort/data/our_data_2011.dta"))
+```
+
+```{r}
+#reorder
+pop.data.2011 <- pop.data.2011[with(pop.data.2011, order(division, age, race)), ]
+pop.data.2015 <- pop.data.2015[with(pop.data.2015, order(division, age, race)), ]
+```
+
+```{r}
+#Create pop.data.interp; add N.2011 and N.2015 populations to it
+pop.data.interp <- pop.data.2011[, c("division", "age", "race", "N")]
+pop.data.interp <- merge(pop.data.interp, pop.data.2015, by=c("division", "age", "race"))
+colnames(pop.data.interp)[4:5] <- c("N.2011", "N.2015")
+```
+
+```{r}
+#reorder
+combine_data <- combine_data[with(combine_data, order(division, age, race)),]
+combine_data$division <- as.factor(combine_data$division)
+combine_data$age <- as.factor(combine_data$age)
+combine_data$race <- as.factor(combine_data$race)
+
+#count the cell sizes in our data
+count <- combine_data %>% count(division, age, race, .drop = F)
+count <- count[with(count, order(division, age, race)),]
+count
+colnames(count)[4] <- c("n_j")
+```
+
+```{r}
+#Read in outcome data from 2011 and 2015
+Round_1_data <- read.dta13(paste0(mainDir,"/MRP/2011_cohort/data/our_data_7439.dta"))
+Round_5_data <- read.dta13(paste0(mainDir,"/MRP/2015_cohort/data/our_data_7416.dta"))
+
+Round_1_data$division <- as.factor(Round_1_data$division)
+Round_1_data$age <- as.factor(Round_1_data$age)
+Round_1_data$race <- as.factor(Round_1_data$race)
+
+#2011 cohort + 2015-only participants
+Round_5_data <- Round_5_data[!Round_5_data$spid %in% Round_1_data$spid, ]
+Round_5_data$division <- as.factor(Round_5_data$division)
+Round_5_data$age <- as.factor(Round_5_data$age)
+Round_5_data$race <- as.factor(Round_5_data$race)
+```
+
+
+```{r}
+#Find number of 2011/2015 participants in each cell
+cell.2011 <- group_split(Round_1_data %>% group_by(division, age, race, .drop = F))
+cell.2015 <- group_split(Round_5_data %>% group_by(division, age, race, .drop = F))
+
+#Add n_j.2011 and n_j.2015 to the pop.data
+pop.data.interp$n_j.2011 <- NA
+pop.data.interp$n_j.2015 <- NA
+
+for (j in 1:135){
+  pop.data.interp$n_j.2011[j] <- nrow(cell.2011[[j]])
+  pop.data.interp$n_j.2015[j] <- nrow(cell.2015[[j]])
+}
+
+#check
+sum(pop.data.interp$n_j.2011)
+sum(pop.data.interp$n_j.2015)
+sum(pop.data.interp$n_j.2011) + sum(pop.data.interp$n_j.2015)
+```
+
+```{r}
+#Add cell sizes n
+pop.data.interp <- merge(pop.data.interp, count, by=c("division", "age", "race"))
+
+#Calculate cell-level proportions
+pop.data.interp$p_j.2011 <- pop.data.interp$n_j.2011/pop.data.interp$n_j
+pop.data.interp$p_j.2015 <- pop.data.interp$n_j.2015/pop.data.interp$n_j
+pop.data.interp
+```
+
+
+```{r}
+for (j in 1:nrow(pop.data.interp)){
+  if (pop.data.interp$n_j[j] == 0){
+    a <- sum(pop.data.interp$n_j.2011)/sum(pop.data.interp$n_j)
+    b <- sum(pop.data.interp$n_j.2015)/sum(pop.data.interp$n_j)
+    pop.data.interp$N[j] <- a * pop.data.interp$N.2011[j] + b * pop.data.interp$N.2015[j]
+  }
+  else{
+    pop.data.interp$N[j]  <- pop.data.interp$p_j.2011[j]*pop.data.interp$N.2011[j] + pop.data.interp$p_j.2015[j]*pop.data.interp$N.2015[j]
+  }
+}
+```
+
+```{r}
+sum(pop.data.interp$N)
+sum(pop.data.2011$N)
+sum(pop.data.2015$N)
+```
+
+```{r}
+saveRDS(pop.data.interp, paste0(mainDir,"/MRP/pop_data/pop.data.interp.RData"))
+```
+
