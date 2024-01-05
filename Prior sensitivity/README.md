@@ -1,6 +1,6 @@
 In addition to the half-Cauchy prior, we considered two alternative priors:
 
-1. inv-gamma(0.001,0.001), which is recommended in Gelman's paper
+1. inv-gamma(0.001,0.001)
 2. half-norm(0,10)
 
 I checked the following three aspects for each choice of prior:
